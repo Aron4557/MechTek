@@ -1,3 +1,6 @@
+
+
+// The Report page// 
 import React, { useState } from 'react';
 import {
   View, Text, SafeAreaView, StatusBar, StyleSheet,
