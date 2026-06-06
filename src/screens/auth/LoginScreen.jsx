@@ -5,8 +5,8 @@ import {
   KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 
 const YELLOW = '#F5A623';
@@ -19,9 +19,9 @@ const TEXT   = '#0F172A';
 const MUTED  = '#64748B';
 
 const ROLES = [
-  { id: 'Worker',     label: 'Worker',     icon: 'wrench'          },
-  { id: 'Technician', label: 'Technician', icon: 'cog'             },
-  { id: 'Supervisor', label: 'Supervisor', icon: 'shield-account'  },
+  { id: 'Worker',     label: 'Worker',     icon: 'wrench'         },
+  { id: 'Technician', label: 'Technician', icon: 'cog'            },
+  { id: 'Supervisor', label: 'Supervisor', icon: 'shield-account' },
 ];
 
 export default function LoginScreen({ navigation }) {
@@ -54,14 +54,50 @@ export default function LoginScreen({ navigation }) {
       else if (role === 'Supervisor') navigation.replace('SupervisorDashboard');
     } catch (err) {
       let msg = 'Login failed. Please try again.';
-      if (err.code === 'auth/user-not-found')          msg = 'No account found with this email.';
-      else if (err.code === 'auth/wrong-password')     msg = 'Incorrect password.';
-      else if (err.code === 'auth/invalid-credential') msg = 'Invalid email or password.';
-      else if (err.code === 'auth/invalid-email')      msg = 'Invalid email format.';
-      else if (err.code === 'auth/too-many-requests')  msg = 'Too many attempts. Try again later.';
+      if (err.code === 'auth/user-not-found')              msg = 'No account found with this email.';
+      else if (err.code === 'auth/wrong-password')         msg = 'Incorrect password.';
+      else if (err.code === 'auth/invalid-credential')     msg = 'Invalid email or password.';
+      else if (err.code === 'auth/invalid-email')          msg = 'Invalid email format.';
+      else if (err.code === 'auth/too-many-requests')      msg = 'Too many attempts. Try again later.';
       else if (err.code === 'auth/network-request-failed') msg = 'Network error. Check connection.';
       Alert.alert('Login Failed', msg);
     } finally { setLoading(false); }
+  };
+
+  const handleForgotPassword = () => {
+    if (!email.trim()) {
+      Alert.alert('Enter Email', 'Type your email address above first, then tap Forgot Password.');
+      return;
+    }
+    Alert.alert(
+      'Reset Password',
+      `Send a reset link to ${email.trim()}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send Link',
+          onPress: async () => {
+            try {
+              const q = query(
+                collection(db, 'users'),
+                where('email', '==', email.trim().toLowerCase())
+              );
+              const snap = await getDocs(q);
+              if (snap.empty) {
+                Alert.alert('Not Found', 'No account found with this email address.');
+                return;
+              }
+              await sendPasswordResetEmail(auth, email.trim());
+              Alert.alert('Email Sent', 'Check your inbox for a password reset link.');
+            } catch (err) {
+              let msg = 'Could not send reset email. Please try again.';
+              if (err.code === 'auth/invalid-email') msg = 'Invalid email format.';
+              Alert.alert('Error', msg);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -124,6 +160,11 @@ export default function LoginScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
+          {/* Forgot Password */}
+          <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotBtn}>
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
           {/* Role */}
           <Text style={styles.label}>Select Your Role</Text>
           <View style={styles.roleRow}>
@@ -158,7 +199,6 @@ export default function LoginScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Bottom spacer so keyboard never covers the button */}
         <View style={{ height: 40 }} />
 
       </ScrollView>
@@ -202,6 +242,9 @@ const styles = StyleSheet.create({
   inputIcon: { marginRight: 8 },
   input:     { flex: 1, paddingVertical: 13, fontSize: 14, color: TEXT },
   eyeBtn:    { padding: 4 },
+
+  forgotBtn:  { alignSelf: 'flex-end', marginTop: 8 },
+  forgotText: { color: TEAL, fontSize: 12, fontWeight: '700' },
 
   roleRow:        { flexDirection: 'row', gap: 10, marginBottom: 8 },
   roleCard:       { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: INPUT, alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: BORDER },

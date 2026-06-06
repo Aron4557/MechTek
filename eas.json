@@ -9,10 +9,21 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dmp6du0th",
+        "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "fault_reports"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dmp6du0th",
+        "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "fault_reports"
+      }
     }
   },
   "submit": {
