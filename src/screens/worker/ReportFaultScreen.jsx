@@ -1,6 +1,5 @@
 
-
-// The Report page// 
+// report page for workers//
 import React, { useState } from 'react';
 import {
   View, Text, SafeAreaView, StatusBar, StyleSheet,
