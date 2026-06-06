@@ -1,3 +1,5 @@
+// supervisor dashboard //
+
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, SafeAreaView, StatusBar, Platform,
