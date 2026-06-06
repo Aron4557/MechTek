@@ -1,4 +1,3 @@
-
 // report page for workers//
 import React, { useState } from 'react';
 import {
@@ -12,9 +11,9 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 
-// ─── Cloudinary config (from .env) ────────────────────────────────────────────
-const CLOUD_NAME    = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
-const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+// ─── Cloudinary config ────────────────────────────────────────────────────────
+const CLOUD_NAME    = 'dmp6du0th';
+const UPLOAD_PRESET = 'fault_reports';
 const UPLOAD_URL    = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/upload`;
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
@@ -49,11 +48,10 @@ const SEVERITIES = [
   { label: 'Critical', color: '#DC2626' },
 ];
 
-const MAX_FILES = 5; // max attachments per report
+const MAX_FILES = 5;
 
 // ─── Upload a single file to Cloudinary ───────────────────────────────────────
 async function uploadToCloudinary(uri, type = 'image', onProgress) {
-  // Compress images before upload
   let finalUri = uri;
   if (type === 'image') {
     const compressed = await ImageManipulator.manipulateAsync(
@@ -73,7 +71,6 @@ async function uploadToCloudinary(uri, type = 'image', onProgress) {
   formData.append('upload_preset', UPLOAD_PRESET);
   formData.append('folder', 'faults');
 
-  // Use XMLHttpRequest so we can track upload progress
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', UPLOAD_URL);
@@ -89,6 +86,7 @@ async function uploadToCloudinary(uri, type = 'image', onProgress) {
         const data = JSON.parse(xhr.responseText);
         resolve({ url: data.secure_url, publicId: data.public_id, type });
       } else {
+        console.log('Cloudinary error:', xhr.responseText);
         reject(new Error(`Upload failed: ${xhr.status}`));
       }
     };
@@ -104,12 +102,11 @@ export default function ReportFaultScreen({ navigation }) {
   const [faultTitle, setFaultTitle]           = useState('');
   const [description, setDescription]         = useState('');
   const [severity, setSeverity]               = useState('');
-  const [mediaFiles, setMediaFiles]           = useState([]); // [{ uri, type, uploaded, url, progress }]
+  const [mediaFiles, setMediaFiles]           = useState([]);
   const [submitting, setSubmitting]           = useState(false);
 
   const user = auth.currentUser;
 
-  // ─── Permission helper ──────────────────────────────────────────────────────
   const requestPermission = async (type) => {
     if (type === 'camera') {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -127,7 +124,6 @@ export default function ReportFaultScreen({ navigation }) {
     return true;
   };
 
-  // ─── Add media to state & start upload ─────────────────────────────────────
   const addAndUpload = async (uri, type) => {
     if (mediaFiles.length >= MAX_FILES) {
       Alert.alert('Limit Reached', `You can attach up to ${MAX_FILES} files per report.`);
@@ -141,23 +137,16 @@ export default function ReportFaultScreen({ navigation }) {
 
     try {
       const result = await uploadToCloudinary(uri, type, (progress) => {
-        setMediaFiles(prev =>
-          prev.map(f => f.id === id ? { ...f, progress } : f)
-        );
+        setMediaFiles(prev => prev.map(f => f.id === id ? { ...f, progress } : f));
       });
-
-      setMediaFiles(prev =>
-        prev.map(f => f.id === id ? { ...f, uploaded: true, url: result.url, progress: 100 } : f)
-      );
+      setMediaFiles(prev => prev.map(f => f.id === id ? { ...f, uploaded: true, url: result.url, progress: 100 } : f));
     } catch (err) {
       console.log('Upload error:', err);
-      setMediaFiles(prev =>
-        prev.map(f => f.id === id ? { ...f, error: 'Upload failed. Tap to retry.' } : f)
-      );
+      Alert.alert('Upload Failed', `Could not upload media. Please check your connection.\n\nError: ${err.message}`);
+      setMediaFiles(prev => prev.map(f => f.id === id ? { ...f, error: 'Upload failed. Tap to retry.' } : f));
     }
   };
 
-  // ─── Camera (photo) ─────────────────────────────────────────────────────────
   const handleCamera = async () => {
     if (!await requestPermission('camera')) return;
     const result = await ImagePicker.launchCameraAsync({
@@ -167,7 +156,6 @@ export default function ReportFaultScreen({ navigation }) {
     if (!result.canceled) addAndUpload(result.assets[0].uri, 'image');
   };
 
-  // ─── Camera (video) ─────────────────────────────────────────────────────────
   const handleVideo = async () => {
     if (!await requestPermission('camera')) return;
     const result = await ImagePicker.launchCameraAsync({
@@ -178,7 +166,6 @@ export default function ReportFaultScreen({ navigation }) {
     if (!result.canceled) addAndUpload(result.assets[0].uri, 'video');
   };
 
-  // ─── Gallery ────────────────────────────────────────────────────────────────
   const handleGallery = async () => {
     if (!await requestPermission('gallery')) return;
     const remaining = MAX_FILES - mediaFiles.length;
@@ -200,18 +187,15 @@ export default function ReportFaultScreen({ navigation }) {
     }
   };
 
-  // ─── Remove media ───────────────────────────────────────────────────────────
   const removeMedia = (id) => {
     setMediaFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  // ─── Validation ─────────────────────────────────────────────────────────────
   const validate = () => {
     if (!selectedMachine)    { Alert.alert('Missing Field', 'Please select a machine.');        return false; }
     if (!faultTitle.trim())  { Alert.alert('Missing Field', 'Please enter a fault title.');     return false; }
     if (!description.trim()) { Alert.alert('Missing Field', 'Please enter a description.');     return false; }
     if (!severity)           { Alert.alert('Missing Field', 'Please select a severity level.'); return false; }
-
     const stillUploading = mediaFiles.some(f => !f.uploaded && !f.error);
     if (stillUploading) {
       Alert.alert('Please Wait', 'Some files are still uploading. Please wait before submitting.');
@@ -220,7 +204,6 @@ export default function ReportFaultScreen({ navigation }) {
     return true;
   };
 
-  // ─── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!validate()) return;
     setSubmitting(true);
@@ -238,7 +221,7 @@ export default function ReportFaultScreen({ navigation }) {
         status:      'Reported',
         reportedBy:  user.uid,
         mediaFiles:  uploadedUrls,
-        imageUrls:   uploadedUrls.filter(m => m.type === 'image').map(m => m.url), // backwards compat
+        imageUrls:   uploadedUrls.filter(m => m.type === 'image').map(m => m.url),
         createdAt:   serverTimestamp(),
         updatedAt:   serverTimestamp(),
       });
@@ -254,7 +237,6 @@ export default function ReportFaultScreen({ navigation }) {
     }
   };
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={T.headerBg} translucent={false} />
@@ -285,7 +267,7 @@ export default function ReportFaultScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
         >
 
-          {/* ── Step 1 — Select Machine ── */}
+          {/* Step 1 — Select Machine */}
           <View style={styles.stepCard}>
             <View style={styles.stepHeader}>
               <View style={[styles.stepBadge, { backgroundColor: YELLOW + '18', borderColor: YELLOW + '55' }]}>
@@ -339,7 +321,7 @@ export default function ReportFaultScreen({ navigation }) {
             )}
           </View>
 
-          {/* ── Step 2 — Fault Details ── */}
+          {/* Step 2 — Fault Details */}
           <View style={styles.stepCard}>
             <View style={styles.stepHeader}>
               <View style={[styles.stepBadge, { backgroundColor: TEAL + '18', borderColor: TEAL + '44' }]}>
@@ -393,7 +375,7 @@ export default function ReportFaultScreen({ navigation }) {
             </View>
           </View>
 
-          {/* ── Step 3 — Attach Media ── */}
+          {/* Step 3 — Attach Media */}
           <View style={styles.stepCard}>
             <View style={styles.stepHeader}>
               <View style={[styles.stepBadge, { backgroundColor: PURPLE + '18', borderColor: PURPLE + '44' }]}>
@@ -405,19 +387,13 @@ export default function ReportFaultScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Action buttons */}
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
               {[
                 { icon: 'camera-outline',   label: 'Camera',  onPress: handleCamera  },
                 { icon: 'videocam-outline', label: 'Video',   onPress: handleVideo   },
                 { icon: 'images-outline',   label: 'Gallery', onPress: handleGallery },
               ].map(({ icon, label, onPress }) => (
-                <TouchableOpacity
-                  key={label}
-                  style={styles.mediaBtn}
-                  onPress={onPress}
-                  activeOpacity={0.7}
-                >
+                <TouchableOpacity key={label} style={styles.mediaBtn} onPress={onPress} activeOpacity={0.7}>
                   <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: PURPLE + '12', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
                     <Ionicons name={icon} size={20} color={PURPLE} />
                   </View>
@@ -426,40 +402,28 @@ export default function ReportFaultScreen({ navigation }) {
               ))}
             </View>
 
-            {/* Media previews */}
             {mediaFiles.length > 0 && (
               <View style={styles.previewGrid}>
                 {mediaFiles.map((file) => (
                   <View key={file.id} style={styles.previewItem}>
-                    {/* Thumbnail */}
-                    <Image
-                      source={{ uri: file.uri }}
-                      style={styles.previewThumb}
-                      resizeMode="cover"
-                    />
+                    <Image source={{ uri: file.uri }} style={styles.previewThumb} resizeMode="cover" />
 
-                    {/* Video badge */}
                     {file.type === 'video' && (
                       <View style={styles.videoBadge}>
                         <Ionicons name="play" size={10} color="#fff" />
                       </View>
                     )}
 
-                    {/* Upload progress overlay */}
                     {!file.uploaded && !file.error && (
                       <View style={styles.previewOverlay}>
                         <ActivityIndicator size="small" color="#fff" />
-                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700', marginTop: 4 }}>
-                          {file.progress}%
-                        </Text>
-                        {/* Progress bar */}
+                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700', marginTop: 4 }}>{file.progress}%</Text>
                         <View style={{ width: '80%', height: 3, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 2, marginTop: 4 }}>
                           <View style={{ width: `${file.progress}%`, height: 3, backgroundColor: '#fff', borderRadius: 2 }} />
                         </View>
                       </View>
                     )}
 
-                    {/* Success tick */}
                     {file.uploaded && (
                       <View style={[styles.previewOverlay, { backgroundColor: 'transparent' }]}>
                         <View style={{ backgroundColor: '#16a34a', borderRadius: 10, padding: 3 }}>
@@ -468,7 +432,6 @@ export default function ReportFaultScreen({ navigation }) {
                       </View>
                     )}
 
-                    {/* Error state */}
                     {file.error && (
                       <View style={[styles.previewOverlay, { backgroundColor: 'rgba(220,38,38,0.7)' }]}>
                         <Ionicons name="alert-circle-outline" size={16} color="#fff" />
@@ -476,12 +439,7 @@ export default function ReportFaultScreen({ navigation }) {
                       </View>
                     )}
 
-                    {/* Remove button */}
-                    <TouchableOpacity
-                      style={styles.removeBtn}
-                      onPress={() => removeMedia(file.id)}
-                      activeOpacity={0.8}
-                    >
+                    <TouchableOpacity style={styles.removeBtn} onPress={() => removeMedia(file.id)} activeOpacity={0.8}>
                       <Ionicons name="close" size={10} color="#fff" />
                     </TouchableOpacity>
                   </View>
@@ -569,7 +527,6 @@ const styles = StyleSheet.create({
   },
   severityBtn: { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', gap: 5 },
 
-  // Media
   mediaBtn: {
     flex: 1, backgroundColor: T.input, borderRadius: 12, paddingVertical: 14,
     alignItems: 'center', borderWidth: 1, borderColor: T.border,

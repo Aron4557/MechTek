@@ -18,8 +18,8 @@ import {
 import { auth, db } from '../../config/firebase';
 
 // ─── Cloudinary config ────────────────────────────────────────────────────────
-const CLOUD_NAME    = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
-const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+const CLOUD_NAME    = 'dmp6du0th';
+const UPLOAD_PRESET = 'fault_reports';
 const UPLOAD_URL    = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/upload`;
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
@@ -139,7 +139,6 @@ function MediaThumb({ uri, type, allImages, imageIndex, onPhotoPress, size = 72,
 
   const handlePress = () => {
     if (isVid) {
-      // Open video URL in the device browser so they can download/play
       Linking.openURL(uri).catch(() => Alert.alert('Error', 'Could not open video URL.'));
     } else {
       onPhotoPress && onPhotoPress(imageIndex);
@@ -152,7 +151,6 @@ function MediaThumb({ uri, type, allImages, imageIndex, onPhotoPress, size = 72,
       activeOpacity={0.8}
       style={{ width: size, height: size, borderRadius: 10, overflow: 'hidden', position: 'relative' }}
     >
-      {/* Thumbnail — for videos show a dark placeholder with play icon since Image can't decode video */}
       {isVid ? (
         <View style={{ width: '100%', height: '100%', backgroundColor: '#1E293B', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="play-circle" size={size * 0.45} color="rgba(255,255,255,0.85)" />
@@ -173,7 +171,7 @@ function MediaThumb({ uri, type, allImages, imageIndex, onPhotoPress, size = 72,
         </View>
       )}
 
-      {/* Success tick (photos only — videos show download icon) */}
+      {/* Success tick */}
       {uploaded && !isVid && (
         <View style={{ position: 'absolute', bottom: 4, right: 4, backgroundColor: '#16a34a', borderRadius: 8, padding: 2 }}>
           <Ionicons name="checkmark" size={10} color="#fff" />
@@ -241,7 +239,8 @@ async function uploadToCloudinary(uri, type = 'image', onProgress) {
         const data = JSON.parse(xhr.responseText);
         resolve(data.secure_url);
       } else {
-        reject(new Error(`Upload failed: ${xhr.status}`));
+        console.log('Cloudinary error response:', xhr.responseText);
+        reject(new Error(`Upload failed: ${xhr.status} - ${xhr.responseText}`));
       }
     };
     xhr.onerror = () => reject(new Error('Network error'));
@@ -375,6 +374,7 @@ function FaultDetailModal({ fault, visible, onClose, t }) {
       setRepairMedia(prev => prev.map(f => f.id === id ? { ...f, uploaded: true, url, progress: 100 } : f));
     } catch (err) {
       console.log('Repair upload error:', err);
+      Alert.alert('Upload Failed', `Could not upload media. Please check your connection and try again.\n\nError: ${err.message}`);
       setRepairMedia(prev => prev.map(f => f.id === id ? { ...f, error: 'Failed' } : f));
     }
   };
@@ -432,15 +432,11 @@ function FaultDetailModal({ fault, visible, onClose, t }) {
   const sevColor = SEV_COLOR[fault.severity] || '#aaa';
   const staColor = STA_COLOR[fault.status]   || '#aaa';
 
-  // All reported media — from mediaFiles (new format) or imageUrls (legacy)
   const reportedMedia = fault.mediaFiles?.length
     ? fault.mediaFiles
     : (fault.imageUrls || []).map(url => ({ url, type: 'image' }));
 
-  // Only image URLs for the viewer
   const reportedImageUrls = reportedMedia.filter(m => m.type === 'image').map(m => m.url);
-
-  // repair images for viewer
   const repairImageUrls = repairMedia.filter(f => f.uploaded && f.type === 'image').map(f => f.uri);
 
   return (
@@ -472,7 +468,6 @@ function FaultDetailModal({ fault, visible, onClose, t }) {
                   <Text style={{ fontSize: 14, color: TEAL, fontWeight: '700', marginBottom: 6 }}>{fault.title || '—'}</Text>
                   <Text style={{ fontSize: 13, color: t.subtext, lineHeight: 20, marginBottom: 10 }}>{fault.description}</Text>
 
-                  {/* ── Reported media (photos clickable, videos open browser) ── */}
                   {reportedMedia.length > 0 && (
                     <View style={{ marginTop: 6, marginBottom: 8 }}>
                       <Text style={{ fontSize: 10, color: t.muted, fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>REPORTED MEDIA</Text>
@@ -541,7 +536,7 @@ function FaultDetailModal({ fault, visible, onClose, t }) {
                 />
                 <Text style={{ color: t.muted, fontSize: 11, textAlign: 'right', marginBottom: 20 }}>{notes.length}/600</Text>
 
-                {/* ── Repair media ── */}
+                {/* Repair media */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <Text style={{ fontSize: 11, fontWeight: '700', color: t.muted, letterSpacing: 1.5 }}>REPAIR MEDIA</Text>
                   <View style={{ backgroundColor: TEAL + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: TEAL + '33' }}>
@@ -627,7 +622,6 @@ function FaultDetailModal({ fault, visible, onClose, t }) {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Full-screen image viewer (rendered outside the bottom sheet modal) */}
       <ImageViewerModal
         visible={viewerVisible}
         images={viewerImages}
@@ -872,4 +866,3 @@ export default function TechnicianDashboard({ navigation }) {
 }
 
 const styles = StyleSheet.create({});
-
